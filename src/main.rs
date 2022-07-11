@@ -16,7 +16,7 @@ struct Args {
     vod_id: String,
     /// Path to ffmpeg
     #[clap(long, value_parser, default_value="")]
-    ffmpeg_path: Option<String>,
+    ffmpeg_path: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -49,12 +49,11 @@ fn get_playlist_variant(variant: &str) -> PlaylistVariant {
 }
 
 fn hls_to_mp4(args: &Args, variant: &str) {
-    let path = args.ffmpeg_path.as_ref().unwrap();
-    if std::path::Path::new(&path).exists() == true {
-        let mut te = Command::new(&path);
+    if std::path::Path::new(&args.ffmpeg_path).exists() == true {
+        let mut formatter = Command::new(&args.ffmpeg_path);
         let input = f!("./gronkhtv/{args.vod_id}/{variant}/index.m3u8");
         let output = f!("./gronkhtv/{args.vod_id}/{variant}.mp4");
-        te.args(&[
+        formatter.args(&[
             "-y",
             "-i",
             &input,
@@ -62,7 +61,7 @@ fn hls_to_mp4(args: &Args, variant: &str) {
             "copy",
             &output
         ]);
-        te.spawn().expect("FFmpeg exited with a non 0 status code!");
+        formatter.spawn().expect("FFmpeg exited with a non 0 status code!");
     } else {
         println!("{}", "FFMPEG not found or not specified. Skipping HLS => MP4 conversion");
     }
