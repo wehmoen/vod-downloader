@@ -172,7 +172,6 @@ async fn main() {
 
             if std::path::Path::new(&output_file).exists() == false {
                 let mut out_file = fs::File::create(&output_file).unwrap();
-
                 let ts_file = client.get(full_url).send().await.unwrap().bytes().await.unwrap();
                 out_file.write_all(&ts_file).expect("Failed to write ts file.");
                 println!("Downloaded ./{}/{}/{}/{}", args.output_path, args.vod_id, quality, file);
@@ -186,8 +185,9 @@ async fn main() {
             println_f!("Skip generating {quality}.mp4. Reason: Output file already exists");
         }
     }
+
     let master_playlist = create_master_playlist(&variant_names);
-    let master_playlist_output = f!("´./{args.output_path}/{args.vod_id}/index.m3u8");
+    let master_playlist_output = f!("./{args.output_path}/{args.vod_id}/index.m3u8");
     fs::write(master_playlist_output, master_playlist).expect("Failed to write master playlist");
 
     println_f!("Downloaded VOD {args.vod_id} to ./{args.output_path}/{args.vod_id}")
