@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate fstrings;
+
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -11,13 +12,49 @@ use std::io::Write;
 struct Args {
     /// VOD ID
     #[clap(long, value_parser)]
-    vod_id: String
+    vod_id: String,
 }
 
-#[derive(Serialize,Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde()]
 struct PlaylistInfo {
-    playlist_url: String
+    playlist_url: String,
+}
+
+struct PlaylistVariant {
+    bandwith: String,
+    framerate: String,
+    name: String,
+    resolution: String
+}
+
+fn get_playlist_variant(variant: &str) -> PlaylistVariant {
+    let parts: Vec<&str> = variant.split("p").collect();
+    let quality = parts[0].to_owned();
+    let framerate: String = if parts.len() == 2 { parts[1].to_owned() } else { "30".to_string() };
+    let bandwith: String = if parts[0] == "1080" { "6000000".to_string() } else if parts[0] == "720" { "2600000".to_string() } else { "1000000".to_string() };
+    let resolution: String = if parts[0] == "1080" { "1920x1080".to_string() } else if parts[0] == "720" { "1080x720".to_string() } else { "640x360".to_string() };
+    let name = if parts.len() == 2 { variant.to_owned() } else { f!("{quality}p") };
+    return PlaylistVariant {
+        bandwith,
+        framerate,
+        name,
+        resolution
+    };
+}
+
+fn create_master_playlist(variants: &Vec<&str>) -> String {
+    let mut playlist: Vec<String> = vec![];
+    playlist.push("#EXTM3U".to_string());
+    playlist.push("#EXT-X-VERSION:3".to_string());
+
+    for v in variants {
+        let details: PlaylistVariant = get_playlist_variant(v);
+        playlist.push(f!("#EXT-X-STREAM-INF:BANDWIDTH={details.bandwith},RESOLUTION={details.resolution},FRAMERATE={details.framerate},CODECS=\"avc1.4D402A,mp4a.40.2\",NAME=\"{details.name}\""));
+        playlist.push(f!("{v}/index.m3u8"));
+    }
+
+    return playlist.join("\r\n");
 }
 
 #[tokio::main]
@@ -39,7 +76,7 @@ async fn main() {
         Err(e) => panic!("{} {}", e, &gtv_playlist_url)
     };
 
-    let playlist_variants_request  = client.get(&playlist_url)
+    let playlist_variants_request = client.get(&playlist_url)
         .send()
         .await
         .unwrap()
@@ -48,6 +85,7 @@ async fn main() {
     let variants: Vec<&str> = playlist_variants_request.split("\r\n").collect();
 
     let mut variant_urls: Vec<String> = vec![];
+    let mut variant_names: Vec<&str> = vec![];
 
     for url in variants {
         if url.starts_with("https") {
@@ -58,13 +96,14 @@ async fn main() {
     for variant in &variant_urls {
         let url_parts: Vec<&str> = variant.split("/").collect();
         let quality = url_parts[5];
-        let id = {url_parts[4]};
-        let ts_base : String  = f!("https://01.cdn.vod.farm/transcode/{id}/{quality}/");
+        variant_names.push(&quality);
+        let id = { url_parts[4] };
+        let ts_base: String = f!("https://01.cdn.vod.farm/transcode/{id}/{quality}/");
         let output = f!("gronkhtv/{args.vod_id}/{quality}");
 
         fs::create_dir_all(output).expect("Failed to create output directory!");
 
-        let playlist: String  = client.get(variant)
+        let playlist: String = client.get(variant)
             .send()
             .await
             .unwrap()
@@ -98,4 +137,7 @@ async fn main() {
             }
         }
     }
+    let master_playlist = create_master_playlist(&variant_names);
+    let master_playlist_output = f!("gronkhtv/{args.vod_id}/index.m3u8");
+    fs::write(master_playlist_output, master_playlist).expect("Failed to write master playlist");
 }
