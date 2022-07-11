@@ -4,7 +4,7 @@ extern crate fstrings;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::io::Write;
+use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Output, Stdio};
 
 /// Gronkh.TV VOD Downloader
@@ -50,9 +50,10 @@ fn get_playlist_variant(variant: &str) -> PlaylistVariant {
 
 fn hls_to_mp4(args: &Args, variant: &str) {
     if std::path::Path::new(&args.ffmpeg_path).exists() == true {
-        let mut formatter = Command::new(&args.ffmpeg_path);
         let input = f!("./gronkhtv/{args.vod_id}/{variant}/index.m3u8");
         let output = f!("./gronkhtv/{args.vod_id}/{variant}.mp4");
+        let mut formatter = Command::new(&args.ffmpeg_path);
+        formatter.stdout(Stdio::piped());
         formatter.args(&[
             "-y",
             "-i",
@@ -61,7 +62,16 @@ fn hls_to_mp4(args: &Args, variant: &str) {
             "copy",
             &output
         ]);
-        formatter.spawn().expect("FFmpeg exited with a non 0 status code!");
+        let stdout = formatter.spawn().unwrap().stdout.unwrap();
+
+        let reader = BufReader::new(stdout);
+
+        reader
+            .lines()
+            .filter_map(|line| line.ok())
+            .filter(|line| line.find("usb").is_some())
+            .for_each(|line| println!("{}", line));
+
     } else {
         println!("{}", "FFMPEG not found or not specified. Skipping HLS => MP4 conversion");
     }
@@ -153,7 +163,7 @@ async fn main() {
             let output_file = f!("gronkhtv/{args.vod_id}/{quality}/{file}");
 
             if std::path::Path::new(&output_file).exists() == false {
-                let mut out_file = std::fs::File::create(&output_file).unwrap();
+                let mut out_file = fs::File::create(&output_file).unwrap();
 
                 let ts_file = client.get(full_url).send().await.unwrap().bytes().await.unwrap();
                 out_file.write_all(&ts_file).expect("Failed to write ts file.");
