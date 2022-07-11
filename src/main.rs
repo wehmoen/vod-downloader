@@ -86,6 +86,7 @@ async fn main() {
 
         let mut playlist_out = "gronkhtv/".to_owned();
         playlist_out.push_str(&args.vod_id);
+        playlist_out.push_str("/");
         playlist_out.push_str(&quality);
         playlist_out.push_str("/index.m3u8");
 
