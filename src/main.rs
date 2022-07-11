@@ -5,7 +5,7 @@ use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
-use std::process::{Command, Output, Stdio};
+use std::process::{Command, Stdio};
 
 /// Gronkh.TV VOD Downloader
 #[derive(Parser, Debug)]
@@ -15,8 +15,12 @@ struct Args {
     #[clap(long, value_parser)]
     vod_id: String,
     /// Path to ffmpeg
-    #[clap(long, value_parser, default_value="")]
+    #[clap(long, value_parser, default_value = "")]
     ffmpeg_path: String,
+    /// Output Path
+    #[clap(long, value_parser, default_value = "gronkhtv")]
+    output_path: String,
+
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -50,28 +54,32 @@ fn get_playlist_variant(variant: &str) -> PlaylistVariant {
 
 fn hls_to_mp4(args: &Args, variant: &str) {
     if std::path::Path::new(&args.ffmpeg_path).exists() == true {
-        let input = f!("./gronkhtv/{args.vod_id}/{variant}/index.m3u8");
-        let output = f!("./gronkhtv/{args.vod_id}/{variant}.mp4");
-        let mut formatter = Command::new(&args.ffmpeg_path);
-        formatter.stdout(Stdio::piped());
-        formatter.args(&[
-            "-y",
-            "-i",
-            &input,
-            "-c",
-            "copy",
-            &output
-        ]);
-        let stdout = formatter.spawn().unwrap().stdout.unwrap();
+        let input = f!("./{args.output_path}/{args.vod_id}/{variant}/index.m3u8");
+        let output = f!("./{args.output_path}/{args.vod_id}/{variant}.mp4");
+        let stdout = Command::new(&args.ffmpeg_path)
+            .stdout(Stdio::piped())
+            .args(
+                &[
+                    "-y",
+                    "-hide_banner",
+                    "-i",
+                    &input,
+                    "-c",
+                    "copy",
+                    &output
+                ]
+            )
+            .spawn()
+            .unwrap()
+            .stdout
+            .unwrap();
 
         let reader = BufReader::new(stdout);
 
         reader
             .lines()
             .filter_map(|line| line.ok())
-            .filter(|line| line.find("usb").is_some())
             .for_each(|line| println!("{}", line));
-
     } else {
         println!("{}", "FFMPEG not found or not specified. Skipping HLS => MP4 conversion");
     }
@@ -133,7 +141,7 @@ async fn main() {
         variant_names.push(&quality);
         let id = { url_parts[4] };
         let ts_base: String = f!("https://01.cdn.vod.farm/transcode/{id}/{quality}/");
-        let output = f!("gronkhtv/{args.vod_id}/{quality}");
+        let output = f!("./{args.output_path}/{args.vod_id}/{quality}");
 
         fs::create_dir_all(output).expect("Failed to create output directory!");
 
@@ -152,7 +160,7 @@ async fn main() {
             }
         }
 
-        let playlist_out = f!("gronkhtv/{args.vod_id}/{quality}/index.m3u8");
+        let playlist_out = f!("./{args.output_path}/{args.vod_id}/{quality}/index.m3u8");
 
         fs::write(playlist_out, &playlist).expect("Failed to write playlist!");
 
@@ -160,19 +168,21 @@ async fn main() {
             let mut full_url = ts_base.clone();
             full_url.push_str(&file);
 
-            let output_file = f!("gronkhtv/{args.vod_id}/{quality}/{file}");
+            let output_file = f!("./{args.output_path}/{args.vod_id}/{quality}/{file}");
 
             if std::path::Path::new(&output_file).exists() == false {
                 let mut out_file = fs::File::create(&output_file).unwrap();
 
                 let ts_file = client.get(full_url).send().await.unwrap().bytes().await.unwrap();
                 out_file.write_all(&ts_file).expect("Failed to write ts file.");
-                println!("Downloaded ./gronkhtv/{}/{}/{}", args.vod_id, quality, file);
+                println!("Downloaded ./{}/{}/{}/{}", args.output_path, args.vod_id, quality, file);
             }
         }
         hls_to_mp4(&args, &quality);
     }
     let master_playlist = create_master_playlist(&variant_names);
-    let master_playlist_output = f!("gronkhtv/{args.vod_id}/index.m3u8");
+    let master_playlist_output = f!("´./{args.output_path}/{args.vod_id}/index.m3u8");
     fs::write(master_playlist_output, master_playlist).expect("Failed to write master playlist");
+
+    println_f!("Downloaded VOD {args.vod_id} to ./{args.output_path}/{args.vod_id}")
 }
