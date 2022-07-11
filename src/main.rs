@@ -5,6 +5,7 @@ use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
+use std::process::{Command, Output, Stdio};
 
 /// Gronkh.TV VOD Downloader
 #[derive(Parser, Debug)]
@@ -13,6 +14,9 @@ struct Args {
     /// VOD ID
     #[clap(long, value_parser)]
     vod_id: String,
+    /// Path to ffmpeg
+    #[clap(long, value_parser)]
+    ffmpeg_path: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -25,7 +29,7 @@ struct PlaylistVariant {
     bandwith: String,
     framerate: String,
     name: String,
-    resolution: String
+    resolution: String,
 }
 
 fn get_playlist_variant(variant: &str) -> PlaylistVariant {
@@ -35,12 +39,33 @@ fn get_playlist_variant(variant: &str) -> PlaylistVariant {
     let bandwith: String = if parts[0] == "1080" { "6000000".to_string() } else if parts[0] == "720" { "2600000".to_string() } else { "1000000".to_string() };
     let resolution: String = if parts[0] == "1080" { "1920x1080".to_string() } else if parts[0] == "720" { "1080x720".to_string() } else { "640x360".to_string() };
     let name = if parts.len() == 2 { variant.to_owned() } else { f!("{quality}p") };
-    return PlaylistVariant {
+
+    PlaylistVariant {
         bandwith,
         framerate,
         name,
-        resolution
-    };
+        resolution,
+    }
+}
+
+fn hls_to_mp4(args: &Args, variant: &str) {
+    let path = args.ffmpeg_path.as_ref().unwrap();
+    if std::path::Path::new(&path).exists() == true {
+        let mut te = Command::new(&path);
+        let input = f!("./gronkhtv/{args.vod_id}/{variant}/index.m3u8");
+        let output = f!("./gronkhtv/{args.vod_id}/{variant}.mp4");
+        te.args(&[
+            "-y",
+            "-i",
+            &input,
+            "-c",
+            "copy",
+            &output
+        ]);
+        te.spawn().expect("FFmpeg exited with a non 0 status code!");
+    } else {
+        println!("{}", "FFMPEG not found or not specified. Skipping HLS => MP4 conversion");
+    }
 }
 
 fn create_master_playlist(variants: &Vec<&str>) -> String {
@@ -54,7 +79,7 @@ fn create_master_playlist(variants: &Vec<&str>) -> String {
         playlist.push(f!("{v}/index.m3u8"));
     }
 
-    return playlist.join("\r\n");
+    playlist.join("\r\n")
 }
 
 #[tokio::main]
@@ -136,6 +161,7 @@ async fn main() {
                 println!("Downloaded ./gronkhtv/{}/{}/{}", args.vod_id, quality, file);
             }
         }
+        hls_to_mp4(&args, &quality);
     }
     let master_playlist = create_master_playlist(&variant_names);
     let master_playlist_output = f!("gronkhtv/{args.vod_id}/index.m3u8");
