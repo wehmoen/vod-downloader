@@ -103,7 +103,7 @@ async fn main() {
             output_file.push_str("/");
             output_file.push_str(&file);
 
-            if fs::Path::new(&output_file).exists() == false {
+            if std::path::Path::new(&output_file).exists() == false {
                 let mut out_file = std::fs::File::create(&output_file).unwrap();
 
                 let ts_file = client.get(full_url).send().await.unwrap().bytes().await.unwrap();
