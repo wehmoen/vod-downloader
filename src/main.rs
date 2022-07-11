@@ -1,3 +1,5 @@
+#[macro_use]
+extern crate fstrings;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -22,8 +24,7 @@ struct PlaylistInfo {
 async fn main() {
     let args: Args = Args::parse();
 
-    let mut gtv_playlist_url: String = "https://api.gronkh.tv/v1/video/playlist?episode=".to_owned();
-    gtv_playlist_url.push_str(&args.vod_id);
+    let mut gtv_playlist_url = f!("https://api.gronkh.tv/v1/video/playlist?episode={args.vod_id}");
 
     let client = reqwest::Client::new();
 
@@ -57,15 +58,9 @@ async fn main() {
     for variant in &variant_urls {
         let url_parts: Vec<&str> = variant.split("/").collect();
         let quality = url_parts[5];
-        let mut ts_base : String  = "https://01.cdn.vod.farm/transcode/".to_owned();
-        ts_base.push_str(url_parts[4]);
-        ts_base.push_str("/");
-        ts_base.push_str(quality);
-        ts_base.push_str("/");
-        let mut output = "gronkhtv/".to_owned();
-        output.push_str(&args.vod_id);
-        output.push_str("/");
-        output.push_str(quality);
+        let id = {url_parts[4]};
+        let mut ts_base : String  = f!("https://01.cdn.vod.farm/transcode/{id}/{quality}/");
+        let output = f!("gronkhtv/{args.vod_id}/{quality}");
 
         fs::create_dir_all(output).expect("Failed to create output directory!");
 
@@ -84,11 +79,7 @@ async fn main() {
             }
         }
 
-        let mut playlist_out = "gronkhtv/".to_owned();
-        playlist_out.push_str(&args.vod_id);
-        playlist_out.push_str("/");
-        playlist_out.push_str(&quality);
-        playlist_out.push_str("/index.m3u8");
+        let playlist_out = f!("gronkhtv/{args.vod_id}/{quality}/index.m3u8");
 
         fs::write(playlist_out, &playlist).expect("Failed to write playlist!");
 
@@ -96,12 +87,7 @@ async fn main() {
             let mut full_url = ts_base.clone();
             full_url.push_str(&file);
 
-            let mut output_file = "gronkhtv/".to_owned();
-            output_file.push_str(&args.vod_id);
-            output_file.push_str("/");
-            output_file.push_str(&quality);
-            output_file.push_str("/");
-            output_file.push_str(&file);
+            let output_file = f!("gronkhtv/{args.vod_id}/{quality}/{file}");
 
             if std::path::Path::new(&output_file).exists() == false {
                 let mut out_file = std::fs::File::create(&output_file).unwrap();
