@@ -24,7 +24,7 @@ struct PlaylistInfo {
 async fn main() {
     let args: Args = Args::parse();
 
-    let mut gtv_playlist_url = f!("https://api.gronkh.tv/v1/video/playlist?episode={args.vod_id}");
+    let gtv_playlist_url = f!("https://api.gronkh.tv/v1/video/playlist?episode={args.vod_id}");
 
     let client = reqwest::Client::new();
 
@@ -59,7 +59,7 @@ async fn main() {
         let url_parts: Vec<&str> = variant.split("/").collect();
         let quality = url_parts[5];
         let id = {url_parts[4]};
-        let mut ts_base : String  = f!("https://01.cdn.vod.farm/transcode/{id}/{quality}/");
+        let ts_base : String  = f!("https://01.cdn.vod.farm/transcode/{id}/{quality}/");
         let output = f!("gronkhtv/{args.vod_id}/{quality}");
 
         fs::create_dir_all(output).expect("Failed to create output directory!");
