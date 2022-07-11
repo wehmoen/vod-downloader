@@ -15,7 +15,7 @@ struct Args {
     #[clap(long, value_parser)]
     vod_id: String,
     /// Path to ffmpeg
-    #[clap(long, value_parser)]
+    #[clap(long, value_parser, default_value="")]
     ffmpeg_path: Option<String>,
 }
 
