@@ -178,7 +178,13 @@ async fn main() {
                 println!("Downloaded ./{}/{}/{}/{}", args.output_path, args.vod_id, quality, file);
             }
         }
-        hls_to_mp4(&args, &quality);
+        let mp4_output = f!("./{args.output_path}/{args.vod_id}/{quality}.mp4");
+
+        if std::path::Path::new(&mp4_output).exists() == false {
+            hls_to_mp4(&args, &quality);
+        } else {
+            println_f!("Skip generating {quality}.mp4. Reason: Output file already exists");
+        }
     }
     let master_playlist = create_master_playlist(&variant_names);
     let master_playlist_output = f!("´./{args.output_path}/{args.vod_id}/index.m3u8");
