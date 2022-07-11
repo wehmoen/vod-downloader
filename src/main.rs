@@ -96,6 +96,7 @@ async fn main() {
 
             let mut output_file = "gronkhtv/".to_owned();
             output_file.push_str(&args.vod_id);
+            output_file.push_str("/");
             output_file.push_str(&quality);
             output_file.push_str("/");
             output_file.push_str(&file);
