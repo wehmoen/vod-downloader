@@ -64,6 +64,7 @@ async fn main() {
         ts_base.push_str("/");
         let mut output = "gronkhtv/".to_owned();
         output.push_str(&args.vod_id);
+        output.push_str("/");
         output.push_str(quality);
 
         fs::create_dir_all(output).expect("Failed to create output directory!");
