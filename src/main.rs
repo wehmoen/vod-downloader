@@ -103,11 +103,13 @@ async fn main() {
             output_file.push_str("/");
             output_file.push_str(&file);
 
-            let mut out_file = std::fs::File::create(&output_file).unwrap();
+            if fs::Path::new(&output_file).exists() == false {
+                let mut out_file = std::fs::File::create(&output_file).unwrap();
 
-            let ts_file = client.get(full_url).send().await.unwrap().bytes().await.unwrap();
-            out_file.write_all(&ts_file).expect("Failed to write ts file.");
-            println!("Downloaded ./gronkhtv/{}/{}/{}", args.vod_id, quality, file);
+                let ts_file = client.get(full_url).send().await.unwrap().bytes().await.unwrap();
+                out_file.write_all(&ts_file).expect("Failed to write ts file.");
+                println!("Downloaded ./gronkhtv/{}/{}/{}", args.vod_id, quality, file);
+            }
         }
     }
 }
