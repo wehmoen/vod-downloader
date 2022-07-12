@@ -193,7 +193,7 @@ async fn main() {
         let ts_base: String = f!("https://01.cdn.vod.farm/transcode/{id}/{quality}/");
         let output: String = f!("./{args.output_path}/{args.vod_id}/{quality}");
         variant_names.push(&quality);
-        println_f!("Start processing: VOD {args.vod_id} => {quality}");
+        println_f!("\n\nStart processing: {quality}");
 
         fs::create_dir_all(output).expect("Failed to create output directory!");
 
