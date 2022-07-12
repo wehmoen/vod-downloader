@@ -174,6 +174,8 @@ async fn main() {
     let playlist_url: String = get_playlist_info(&client, &args).await.playlist_url;
     let playlist_variants: String = web_get_text(&client, &playlist_url).await;
 
+    println_f!(">> Downloading: \"{video_info.title}\"");
+
     let variants: Vec<&str> = playlist_variants.split("\r\n").collect();
 
     let mut variant_urls: Vec<String> = vec![];
