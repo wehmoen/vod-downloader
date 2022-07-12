@@ -3,9 +3,13 @@ extern crate fstrings;
 
 use clap::Parser;
 use serde::{Deserialize, Serialize};
-use std::fs;
+use std::{fmt, fs};
+use std::fmt::Formatter;
+use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
+use std::path::Path;
 use std::process::{Command, Stdio};
+use reqwest::Client;
 
 /// Gronkh.TV VOD Downloader
 #[derive(Parser, Debug)]
@@ -27,6 +31,22 @@ struct Args {
 #[serde()]
 struct PlaylistInfo {
     playlist_url: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde()]
+struct VideoInfo {
+    title: String,
+    preview_url: String,
+    created_at: String,
+    episode: i32,
+}
+
+impl fmt::Display for VideoInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let episode: String = self.episode.to_string();
+        write!(f, "VOD: [{}] - \"{}\"", episode, self.title)
+    }
 }
 
 struct PlaylistVariant {
@@ -52,8 +72,44 @@ fn get_playlist_variant(variant: &str) -> PlaylistVariant {
     }
 }
 
+async fn get_video_info(client: &Client, args: &Args) -> VideoInfo {
+    let info_url = f!("https://api.gronkh.tv/v1/video/info?episode={args.vod_id}");
+    let info: Result<VideoInfo, reqwest::Error> = client.get(&info_url)
+        .send()
+        .await
+        .unwrap()
+        .json().await;
+
+    match info {
+        Ok(res) => res,
+        Err(e) => panic!("{} {}", e, &info_url)
+    }
+}
+
+async fn get_playlist_info(client: &Client, args: &Args) -> PlaylistInfo {
+    let info_url = f!("https://api.gronkh.tv/v1/video/playlist?episode={args.vod_id}");
+    let info: Result<PlaylistInfo, reqwest::Error> = client.get(&info_url)
+        .send()
+        .await
+        .unwrap()
+        .json().await;
+
+    match info {
+        Ok(res) => res,
+        Err(e) => panic!("{} {}", e, &info_url)
+    }
+}
+
+async fn web_get_text(client: &Client, url: &str) -> String {
+    client.get(url)
+        .send()
+        .await
+        .unwrap()
+        .text().await.unwrap()
+}
+
 fn hls_to_mp4(args: &Args, variant: &str) {
-    if std::path::Path::new(&args.ffmpeg_path).exists() == true {
+    if Path::new(&args.ffmpeg_path).exists() == true {
         let input = f!("./{args.output_path}/{args.vod_id}/{variant}/index.m3u8");
         let output = f!("./{args.output_path}/{args.vod_id}/{variant}.mp4");
         let stdout = Command::new(&args.ffmpeg_path)
@@ -103,28 +159,12 @@ fn create_master_playlist(variants: &Vec<&str>) -> String {
 async fn main() {
     let args: Args = Args::parse();
 
-    let gtv_playlist_url = f!("https://api.gronkh.tv/v1/video/playlist?episode={args.vod_id}");
+    let client: Client = Client::new();
+    let video_info: VideoInfo = get_video_info(&client, &args).await;
+    let playlist_url: String = get_playlist_info(&client, &args).await.playlist_url;
+    let playlist_variants: String = web_get_text(&client, &playlist_url).await;
 
-    let client = reqwest::Client::new();
-
-    let playlist_request: Result<PlaylistInfo, reqwest::Error> = client.get(&gtv_playlist_url)
-        .send()
-        .await
-        .unwrap()
-        .json().await;
-
-    let playlist_url = match playlist_request {
-        Ok(res) => res.playlist_url,
-        Err(e) => panic!("{} {}", e, &gtv_playlist_url)
-    };
-
-    let playlist_variants_request = client.get(&playlist_url)
-        .send()
-        .await
-        .unwrap()
-        .text().await.unwrap();
-
-    let variants: Vec<&str> = playlist_variants_request.split("\r\n").collect();
+    let variants: Vec<&str> = playlist_variants.split("\r\n").collect();
 
     let mut variant_urls: Vec<String> = vec![];
     let mut variant_names: Vec<&str> = vec![];
@@ -137,19 +177,15 @@ async fn main() {
 
     for variant in &variant_urls {
         let url_parts: Vec<&str> = variant.split("/").collect();
-        let quality = url_parts[5];
-        let id = { url_parts[4] };
+        let quality: &str = url_parts[5];
+        let id: &str = { url_parts[4] };
         let ts_base: String = f!("https://01.cdn.vod.farm/transcode/{id}/{quality}/");
-        let output = f!("./{args.output_path}/{args.vod_id}/{quality}");
+        let output: String = f!("./{args.output_path}/{args.vod_id}/{quality}");
         variant_names.push(&quality);
 
         fs::create_dir_all(output).expect("Failed to create output directory!");
 
-        let playlist: String = client.get(variant)
-            .send()
-            .await
-            .unwrap()
-            .text().await.unwrap();
+        let playlist: String = web_get_text(&client, &variant).await;
 
         let mut ts_files: Vec<String> = vec![];
         let lines: Vec<&str> = playlist.split("\n").collect();
@@ -160,25 +196,24 @@ async fn main() {
             }
         }
 
-        let playlist_out = f!("./{args.output_path}/{args.vod_id}/{quality}/index.m3u8");
+        let playlist_out: String = f!("./{args.output_path}/{args.vod_id}/{quality}/index.m3u8");
 
         fs::write(playlist_out, &playlist).expect("Failed to write playlist!");
 
         for file in ts_files {
-            let full_url = f!("{ts_base}{file}");
+            let full_url: String = f!("{ts_base}{file}");
+            let output_file: String = f!("./{args.output_path}/{args.vod_id}/{quality}/{file}");
 
-            let output_file = f!("./{args.output_path}/{args.vod_id}/{quality}/{file}");
-
-            if std::path::Path::new(&output_file).exists() == false {
-                let mut out_file = fs::File::create(&output_file).unwrap();
+            if Path::new(&output_file).exists() == false {
+                let mut out_file: File = File::create(&output_file).unwrap();
                 let ts_file = client.get(full_url).send().await.unwrap().bytes().await.unwrap();
                 out_file.write_all(&ts_file).expect("Failed to write ts file.");
                 println!("Downloaded ./{}/{}/{}/{}", args.output_path, args.vod_id, quality, file);
             }
         }
-        let mp4_output = f!("./{args.output_path}/{args.vod_id}/{quality}.mp4");
+        let mp4_output: String = f!("./{args.output_path}/{args.vod_id}/{quality}.mp4");
 
-        if std::path::Path::new(&mp4_output).exists() == false {
+        if &mp4_output != "" && Path::new(&mp4_output).exists() == false {
             hls_to_mp4(&args, &quality);
         } else {
             println_f!("Skip generating {quality}.mp4. Reason: Output file already exists");
@@ -189,5 +224,5 @@ async fn main() {
     let master_playlist_output = f!("./{args.output_path}/{args.vod_id}/index.m3u8");
     fs::write(master_playlist_output, master_playlist).expect("Failed to write master playlist");
 
-    println_f!("Downloaded VOD {args.vod_id} to ./{args.output_path}/{args.vod_id}")
+    println_f!("Downloadeded {video_info} to ./{args.output_path}/{args.vod_id}")
 }
