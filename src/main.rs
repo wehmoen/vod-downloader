@@ -138,10 +138,10 @@ async fn main() {
     for variant in &variant_urls {
         let url_parts: Vec<&str> = variant.split("/").collect();
         let quality = url_parts[5];
-        variant_names.push(&quality);
         let id = { url_parts[4] };
         let ts_base: String = f!("https://01.cdn.vod.farm/transcode/{id}/{quality}/");
         let output = f!("./{args.output_path}/{args.vod_id}/{quality}");
+        variant_names.push(&quality);
 
         fs::create_dir_all(output).expect("Failed to create output directory!");
 
@@ -165,8 +165,7 @@ async fn main() {
         fs::write(playlist_out, &playlist).expect("Failed to write playlist!");
 
         for file in ts_files {
-            let mut full_url = ts_base.clone();
-            full_url.push_str(&file);
+            let full_url = f!("{ts_base}{file}");
 
             let output_file = f!("./{args.output_path}/{args.vod_id}/{quality}/{file}");
 
