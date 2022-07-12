@@ -136,7 +136,7 @@ fn hls_to_mp4(args: &Args, variant: &str, ts_file_len: u64) {
         let bar = ProgressBar::new(ts_file_len);
         bar.set_message(f!("Creating: {variant}.mp4 from TS Files"));
         bar.set_style(
-            ProgressStyle::default_spinner().template("{spinner}{bar:80.cyan/blue} {percent}% | [{eta_precise}][{elapsed_precise}] ETA/Elapsed | {msg}{pos:>5}/{len:4}").unwrap()
+            ProgressStyle::default_spinner().template("{spinner}{bar:80.cyan/blue} {percent:>3}% | [{eta_precise}][{elapsed_precise}] ETA/Elapsed | {msg}{pos:>5}/{len:4}").unwrap()
         );
 
         reader
@@ -219,7 +219,7 @@ async fn main() {
 
         let bar = ProgressBar::new(ts_files_len.clone());
         bar.set_style(
-            ProgressStyle::default_spinner().template("{spinner}{bar:80.cyan/blue} {percent}% | [{eta_precise}][{elapsed_precise}] ETA/Elapsed | {msg}{pos:>5}/{len:4}").unwrap()
+            ProgressStyle::default_spinner().template("{spinner}{bar:80.cyan/blue} {percent:>3}% | [{eta_precise}][{elapsed_precise}] ETA/Elapsed | {msg}{pos:>5}/{len:4}").unwrap()
         );
         bar.set_message(f!("Downloading: TS Files"));
         for file in ts_files {
