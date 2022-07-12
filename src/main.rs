@@ -10,6 +10,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use reqwest::Client;
+use indicatif::{ProgressBar, ProgressStyle};
 
 /// Gronkh.TV VOD Downloader
 #[derive(Parser, Debug)]
@@ -108,12 +109,13 @@ async fn web_get_text(client: &Client, url: &str) -> String {
         .text().await.unwrap()
 }
 
-fn hls_to_mp4(args: &Args, variant: &str) {
+fn hls_to_mp4(args: &Args, variant: &str, ts_file_len: u64) {
     if Path::new(&args.ffmpeg_path).exists() == true {
         let input = f!("./{args.output_path}/{args.vod_id}/{variant}/index.m3u8");
         let output = f!("./{args.output_path}/{args.vod_id}/{variant}.mp4");
-        let stdout = Command::new(&args.ffmpeg_path)
+        let ffmpeg = Command::new(&args.ffmpeg_path)
             .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
             .args(
                 &[
                     "-y",
@@ -127,15 +129,22 @@ fn hls_to_mp4(args: &Args, variant: &str) {
             )
             .spawn()
             .unwrap()
-            .stdout
-            .unwrap();
+            ;
 
-        let reader = BufReader::new(stdout);
+        let reader = BufReader::new(ffmpeg.stderr.unwrap());
+
+        let bar = ProgressBar::new(ts_file_len);
+        bar.set_message(f!("Creating: {variant}.mp4 from TS Files"));
+        bar.set_style(
+            ProgressStyle::default_spinner().template("{spinner}{bar:80.cyan/blue} {percent}% | [{eta_precise}][{elapsed_precise}] ETA/Elapsed |{pos:>7}/{len:7}{msg}").unwrap()
+        );
 
         reader
             .lines()
             .filter_map(|line| line.ok())
-            .for_each(|line| println!("{}", line));
+            .for_each(|line| if line.contains("Opening") { bar.inc(1) } );
+
+        bar.finish();
     } else {
         println!("{}", "FFMPEG not found or not specified. Skipping HLS => MP4 conversion");
     }
@@ -176,12 +185,15 @@ async fn main() {
     }
 
     for variant in &variant_urls {
+
+
         let url_parts: Vec<&str> = variant.split("/").collect();
         let quality: &str = url_parts[5];
         let id: &str = { url_parts[4] };
         let ts_base: String = f!("https://01.cdn.vod.farm/transcode/{id}/{quality}/");
         let output: String = f!("./{args.output_path}/{args.vod_id}/{quality}");
         variant_names.push(&quality);
+        println_f!("Start processing: VOD {args.vod_id} => {quality}");
 
         fs::create_dir_all(output).expect("Failed to create output directory!");
 
@@ -200,7 +212,15 @@ async fn main() {
 
         fs::write(playlist_out, &playlist).expect("Failed to write playlist!");
 
+        let ts_files_len = ts_files.len() as u64;
+
+        let bar = ProgressBar::new(ts_files_len.clone());
+        bar.set_style(
+            ProgressStyle::default_spinner().template("{spinner}{bar:80.cyan/blue} {percent}% | [{eta_precise}][{elapsed_precise}] ETA/Elapsed |{pos:>7}/{len:7}{msg}").unwrap()
+        );
+        bar.set_message(f!("Downloading: TS Files"));
         for file in ts_files {
+
             let full_url: String = f!("{ts_base}{file}");
             let output_file: String = f!("./{args.output_path}/{args.vod_id}/{quality}/{file}");
 
@@ -208,13 +228,15 @@ async fn main() {
                 let mut out_file: File = File::create(&output_file).unwrap();
                 let ts_file = client.get(full_url).send().await.unwrap().bytes().await.unwrap();
                 out_file.write_all(&ts_file).expect("Failed to write ts file.");
-                println!("Downloaded ./{}/{}/{}/{}", args.output_path, args.vod_id, quality, file);
+                // println!("Downloaded ./{}/{}/{}/{}", args.output_path, args.vod_id, quality, file);
             }
+            bar.inc(1);
         }
+        bar.finish();
         let mp4_output: String = f!("./{args.output_path}/{args.vod_id}/{quality}.mp4");
 
         if &mp4_output != "" && Path::new(&mp4_output).exists() == false {
-            hls_to_mp4(&args, &quality);
+            hls_to_mp4(&args, &quality, ts_files_len.clone());
         } else {
             println_f!("Skip generating {quality}.mp4. Reason: Output file already exists");
         }
@@ -224,5 +246,5 @@ async fn main() {
     let master_playlist_output = f!("./{args.output_path}/{args.vod_id}/index.m3u8");
     fs::write(master_playlist_output, master_playlist).expect("Failed to write master playlist");
 
-    println_f!("Downloadeded {video_info} to ./{args.output_path}/{args.vod_id}")
+    println_f!("Downloaded {video_info} to ./{args.output_path}/{args.vod_id}")
 }
