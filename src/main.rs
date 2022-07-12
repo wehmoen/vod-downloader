@@ -219,7 +219,7 @@ async fn main() {
 
         let bar = ProgressBar::new(ts_files_len.clone());
         bar.set_style(
-            ProgressStyle::default_spinner().template("{spinner}{bar:80.cyan/blue} {percent}% | [{eta_precise}][{elapsed_precise}] ETA/Elapsed | {msg}{pos:>4}/{len:4}").unwrap()
+            ProgressStyle::default_spinner().template("{spinner}{bar:80.cyan/blue} {percent}% | [{eta_precise}][{elapsed_precise}] ETA/Elapsed | {msg}{pos:>5}/{len:4}").unwrap()
         );
         bar.set_message(f!("Downloading: TS Files"));
         for file in ts_files {
