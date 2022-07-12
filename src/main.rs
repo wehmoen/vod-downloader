@@ -136,7 +136,7 @@ fn hls_to_mp4(args: &Args, variant: &str, ts_file_len: u64) {
         let bar = ProgressBar::new(ts_file_len);
         bar.set_message(f!("Creating: {variant}.mp4 from TS Files"));
         bar.set_style(
-            ProgressStyle::default_spinner().template("{spinner}{bar:80.cyan/blue} {percent}% | [{eta_precise}][{elapsed_precise}] ETA/Elapsed |{pos:>7}/{len:7}{msg}").unwrap()
+            ProgressStyle::default_spinner().template("{spinner}{bar:80.cyan/blue} {percent}% | [{eta_precise}][{elapsed_precise}] ETA/Elapsed | {msg}{pos:>5}/{len:4}").unwrap()
         );
 
         reader
