@@ -219,7 +219,7 @@ async fn main() {
 
         let bar = ProgressBar::new(ts_files_len.clone());
         bar.set_style(
-            ProgressStyle::default_spinner().template("{spinner}{bar:80.cyan/blue} {percent}% | [{eta_precise}][{elapsed_precise}] ETA/Elapsed |{pos:>7}/{len:7}{msg}").unwrap()
+            ProgressStyle::default_spinner().template("{spinner}{bar:80.cyan/blue} {percent}% | [{eta_precise}][{elapsed_precise}] ETA/Elapsed |{msg}{pos:>7}/{len:7}").unwrap()
         );
         bar.set_message(f!("Downloading: TS Files"));
         for file in ts_files {
@@ -231,7 +231,6 @@ async fn main() {
                 let mut out_file: File = File::create(&output_file).unwrap();
                 let ts_file = client.get(full_url).send().await.unwrap().bytes().await.unwrap();
                 out_file.write_all(&ts_file).expect("Failed to write ts file.");
-                // println!("Downloaded ./{}/{}/{}/{}", args.output_path, args.vod_id, quality, file);
             }
             bar.inc(1);
         }
