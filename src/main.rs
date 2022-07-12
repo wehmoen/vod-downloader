@@ -145,6 +145,7 @@ fn hls_to_mp4(args: &Args, variant: &str, ts_file_len: u64) {
             .for_each(|line| if line.contains("Opening") { bar.inc(1) } );
 
         bar.finish();
+        println_f!("\n\n");
     } else {
         println!("{}", "FFMPEG not found or not specified. Skipping HLS => MP4 conversion");
     }
@@ -193,7 +194,7 @@ async fn main() {
         let ts_base: String = f!("https://01.cdn.vod.farm/transcode/{id}/{quality}/");
         let output: String = f!("./{args.output_path}/{args.vod_id}/{quality}");
         variant_names.push(&quality);
-        println_f!("\n\nStart processing: {quality}");
+        println_f!("Start processing: {quality}");
 
         fs::create_dir_all(output).expect("Failed to create output directory!");
 
@@ -238,7 +239,7 @@ async fn main() {
         if &mp4_output != "" && Path::new(&mp4_output).exists() == false {
             hls_to_mp4(&args, &quality, ts_files_len.clone());
         } else {
-            println_f!("Skip generating {quality}.mp4. Reason: Output file already exists");
+            println_f!("Skip generating {quality}.mp4. Reason: Output file already exists\n\n");
         }
     }
 
